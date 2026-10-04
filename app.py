@@ -12,7 +12,7 @@ app.secret_key = 'super_secret_key_change_me_in_production'
 
 QUESTIONS_FILE = 'questions.json'
 ADMIN_USERNAME = 'admin'
-ADMIN_PASSWORD = 'admin123'
+ADMIN_PASSWORD = 'Zaq1xsw2'
 SESSION_DURATION_HOURS = 3  # Длительность сессии ученика в часах
 
 
