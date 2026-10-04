@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Панель администратора</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 25px; }
+        .header h1 { margin: 0; font-size: 24px; color: #333; }
+        .header-actions { display: flex; gap: 10px; }
+
+        .btn { padding: 10px 18px; border-radius: 6px; font-weight: bold; text-decoration: none; color: white; border: none; cursor: pointer; display: inline-block; font-size: 14px; }
+        .btn-green { background-color: #28a745; }
+        .btn-green:hover { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
+
+        .card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .card h2 { margin-top: 0; font-size: 18px; color: #495057; }
+
+        .question-card { background: white; border: 1px solid #ddd; border-left: 5px solid #007bff; border-radius: 6px; padding: 15px; margin-bottom: 15px; position: relative; }
+        .question-meta { font-size: 12px; color: #6c757d; margin-bottom: 8px; font-weight: bold; }
+        .question-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #212529; }
+        
+        ul { margin: 5px 0 0 20px; padding: 0; }
+        li { margin-bottom: 4px; }
+        .correct-ans { color: #28a745; font-weight: bold; }
+
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; display: inline-block; }
+        .badge-module { background-color: #17a2b8; }
+        .badge-type { background-color: #6f42c1; }
+
+        .flash { padding: 10px; background: #e8f8f0; color: #28a745; border: 1px solid #b7e4c7; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Шапка страницы -->
+    <div class="header">
+        <h1>🛠 Панель администратора</h1>
+        <div class="header-actions">
+            <a href="/admin/pins" class="btn btn-green">🔑 Генерация PIN-кодов</a>
+            <a href="/" class="btn btn-secondary">На главную</a>
+            <a href="/logout" class="btn btn-danger">Выйти</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Загрузка вопросов из файла Word -->
+    <div class="card">
+        <h2>📄 Загрузить вопросы из файла Word (.docx)</h2>
+        <form action="/admin/upload_docx" method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px;">
+            <input type="file" name="file" accept=".docx" required style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <button type="submit" class="btn btn-green">Загрузить файл</button>
+        </form>
+    </div>
+
+    <!-- Список вопросов -->
+    <h2>📚 Список вопросов в базе (всего: {{ questions|length }})</h2>
+
+    {% if not questions %}
+        <p style="color: #6c757d; font-style: italic;">Вопросы пока не загружены.</p>
+    {% else %}
+        {% for q in questions %}
+            <div class="question-card">
+                <div class="question-meta">
+                    <span class="badge badge-module">Модуль {{ q.get('module', 1) }}</span>
+                    <span class="badge badge-type">
+                        {% if q.get('type') == 'matching' %}Сопоставление{% else %}Тестовый выбор{% endif %}
+                    </span>
+                    ID: {{ q.get('id') }}
+                </div>
+
+                <div class="question-title">{{ q.get('question') }}</div>
+
+                {% if q.get('type') == 'matching' %}
+                    <p><strong>Пары для сопоставления:</strong></p>
+                    <ul>
+                        {% for pair in q.get('pairs', []) %}
+                            <li><code>{{ pair.get('left') }}</code> ➔ <strong class="correct-ans">{{ pair.get('right') }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p><strong>Варианты ответов:</strong></p>
+                    <ul>
+                        {% if q.get('options') is mapping %}
+                            <!-- Если options это словарь {"A": "Текст", "B": "Текст"} -->
+                            {% for key, val in q.get('options', {}).items() %}
+                                <li class="{% if key == q.get('correct') or val == q.get('correct') %}correct-ans{% endif %}">
+                                    <strong>{{ key }}:</strong> {{ val }}
+                                    {% if key == q.get('correct') or val == q.get('correct') %} (Правильный ответ){% endif %}
+                                </li>
+                            {% endfor %}
+                        {% elif q.get('options') is iterable and q.get('options') is not string %}
+                            <!-- Если options это обычный список ["Ответ 1", "Ответ 2"] -->
+                            {% for option in q.get('options', []) %}
+                                <li class="{% if option == q.get('correct') or loop.index0 == q.get('correct') %}correct-ans{% endif %}">
+                                    {{ option }}
+                                    {% if option == q.get('correct') or loop.index0 == q.get('correct') %} (Правильный ответ){% endif %}
+                                </li>
+                            {% endfor %}
+                        {% endif %}
+                    </ul>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+</div>
+
+</body>
+</html>

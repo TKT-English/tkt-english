@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Главное меню - Система Тестирования</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 35px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 420px; text-align: center; }
+        h2 { margin-top: 0; color: #1e293b; font-size: 24px; }
+        p { color: #64748b; margin-bottom: 25px; }
+        .mod-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px; }
+        .btn-mod { display: block; padding: 12px; background: #007bff; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: background 0.2s; }
+        .btn-mod:hover { background: #0056b3; }
+        .admin-link { display: inline-block; margin-top: 10px; color: #6366f1; text-decoration: none; font-size: 14px; font-weight: bold; }
+        .logout-link { display: inline-block; margin-top: 15px; color: #ef4444; text-decoration: none; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Здравствуйте, {{ username }}!</h2>
+        <p>Выберите модуль для прохождения тестирования:</p>
+
+        <div class="mod-grid">
+            {% for mod in modules %}
+                <a href="/quiz?module={{ mod }}" class="btn-mod">Модуль {{ mod }}</a>
+            {% endfor %}
+        </div>
+
+        {% if is_admin %}
+            <div style="border-top: 1px solid #eee; padding-top: 15px;">
+                <a href="/admin" class="admin-link">⚙️ Панель администратора</a>
+            </div>
+        {% endif %}
+
+        <div>
+            <a href="/logout" class="logout-link">Выйти из системы</a>
+        </div>
+    </div>
+</body>
+</html>

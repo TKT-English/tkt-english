@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Прохождение теста</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; padding-top: 80px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 25px; }
+        
+        /* Визуальный таймер обратного отсчета */
+        #timer-box {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            background: #212529;
+            color: #ffc107;
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .question-card { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .question-title { font-weight: bold; font-size: 17px; margin-bottom: 15px; color: #212529; }
+        
+        .option-item { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .option-item input { cursor: pointer; }
+
+        .matching-row { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .matching-row select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; flex: 1; }
+
+        .btn { padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; width: 100%; margin-top: 20px; }
+        .btn:hover { background: #218838; }
+
+        .result-box { display: none; padding: 20px; background: #e8f8f0; border: 1px solid #b7e4c7; border-radius: 8px; margin-top: 20px; text-align: center; font-size: 18px; font-weight: bold; color: #155724; }
+        
+        .correct-bg { border-left: 6px solid #28a745 !important; }
+        .incorrect-bg { border-left: 6px solid #dc3545 !important; }
+    </style>
+</head>
+<body>
+
+<!-- Плавающий блок с таймером -->
+<div id="timer-box">
+    ⏳ Осталось времени: <span id="time-display">03:00:00</span>
+</div>
+
+<div class="container">
+    <div class="header">
+        <h2>📝 Тестирование</h2>
+        <a href="/" style="color: #007bff; text-decoration: none; font-weight: bold;">← Выйти к модулям</a>
+    </div>
+
+    {% if not questions %}
+        <p style="color: #6c757d;">Вопросы для данного модуля не найдены.</p>
+    {% else %}
+        <form id="quiz-form">
+            {% for q in questions %}
+                <div class="question-card" id="q-card-{{ q.id }}">
+                    <div class="question-title">{{ loop.index }}. {{ q.question }}</div>
+
+                    {% if q.type == 'matching' %}
+                        <!-- Вопросы на сопоставление -->
+                        {% for pair in q.pairs %}
+                            <div class="matching-row">
+                                <span style="flex: 1; font-weight: 500;">{{ pair.left }}</span>
+                                ➔
+                                <select name="q_{{ q.id }}_{{ pair.left }}">
+                                    <option value="__NO_PAIR__">-- Выберите соответствие --</option>
+                                    {% for sub_pair in q.pairs %}
+                                        <option value="{{ sub_pair.right }}">{{ sub_pair.right }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% endfor %}
+
+                    {% else %}
+                        <!-- Выбор одного ответа -->
+                        {% if q.options is mapping %}
+                            {% for key, val in q.options.items() %}
+                                <label class="option-item">
+                                    <input type="radio" name="q_{{ q.id }}" value="{{ key }}">
+                                    <span><strong>{{ key }}:</strong> {{ val }}</span>
+                                </label>
+                            {% endfor %}
+                        {% elif q.options is iterable and q.options is not string %}
+                            {% for option in q.options %}
+                                <label class="option-item">
+                                    <input type="radio" name="q_{{ q.id }}" value="{{ option }}">
+                                    <span>{{ option }}</span>
+                                </label>
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            <button type="button" class="btn" onclick="submitAnswers()">Завершить тест и проверить</button>
+        </form>
+
+        <div id="result" class="result-box"></div>
+    {% endif %}
+</div>
+
+<script>
+// --- ЛОГИКА ТАЙМЕРА И АВТОВЫХОДА ---
+let timerInterval = null;
+
+function checkTimeLeft() {
+    fetch('/api/time_left')
+        .then(res => res.json())
+        .then(data => {
+            let secondsLeft = data.time_left;
+
+            if (secondsLeft <= 0) {
+                clearInterval(timerInterval);
+                alert('Время действия вашего PIN-кода (3 часа) истекло! Доступ закрыт.');
+                window.location.href = '/logout';
+                return;
+            }
+
+            let hours = Math.floor(secondsLeft / 3600);
+            let minutes = Math.floor((secondsLeft % 3600) / 60);
+            let seconds = secondsLeft % 60;
+
+            document.getElementById('time-display').innerText = 
+                String(hours).padStart(2, '0') + ':' + 
+                String(minutes).padStart(2, '0') + ':' + 
+                String(seconds).padStart(2, '0');
+        })
+        .catch(err => console.error('Ошибка получения времени:', err));
+}
+
+// Запускаем таймер с обновлением каждые 3 секунды
+checkTimeLeft();
+timerInterval = setInterval(checkTimeLeft, 3000);
+
+
+// --- ЛОГИКА ПРОВЕРКИ ТЕСТА ---
+function submitAnswers() {
+    const form = document.getElementById('quiz-form');
+    const formData = new FormData(form);
+    const answers = {};
+
+    for (let [key, value] of formData.entries()) {
+        if (key.startsWith('q_')) {
+            let parts = key.split('_');
+            let qId = parts[1];
+
+            if (parts.length > 2) {
+                // Matching type
+                let leftKey = parts.slice(2).join('_');
+                if (!answers[qId]) answers[qId] = {};
+                answers[qId][leftKey] = value;
+            } else {
+                // Choice type
+                answers[qId] = value;
+            }
+        }
+    }
+
+    fetch('/api/check_answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(answers)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `Ваш результат: ${data.score} из ${data.total}`;
+
+        // Подсветка карточек
+        for (let qId in data.results) {
+            let card = document.getElementById(`q-card-${qId}`);
+            if (card) {
+                if (data.results[qId]) {
+                    card.classList.add('correct-bg');
+                    card.classList.remove('incorrect-bg');
+                } else {
+                    card.classList.add('incorrect-bg');
+                    card.classList.remove('correct-bg');
+                }
+            }
+        }
+
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    })
+    .catch(err => console.error('Ошибка отправки:', err));
+}
+</script>
+
+</body>
+</html>

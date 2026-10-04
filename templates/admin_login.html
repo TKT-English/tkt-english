@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход для администратора</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #f4f6f9; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            width: 320px; 
+            text-align: center; 
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 6px; 
+            box-sizing: border-box; 
+            font-size: 15px; 
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #343a40; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            margin-top: 10px; 
+        }
+        button:hover { 
+            background: #23272b; 
+        }
+        .flash { 
+            color: red; 
+            margin-bottom: 15px; 
+            font-size: 14px; 
+        }
+        .back-link { 
+            display: block; 
+            margin-top: 15px; 
+            color: #007bff; 
+            text-decoration: none; 
+            font-size: 14px; 
+        }
+        .back-link:hover { 
+            text-decoration: underline; 
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🛠 Вход для админа</h2>
+        
+        {% if error %}
+            <div class="flash">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" action="/admin/login" autocomplete="off">
+            <!-- Скрытые поля от автоматического подставления браузера -->
+            <input type="text" style="display:none" aria-hidden="true">
+            <input type="password" style="display:none" aria-hidden="true">
+
+            <input type="text" 
+                   name="username" 
+                   placeholder="Логин" 
+                   required 
+                   autocomplete="off">
+                   
+            <input type="password" 
+                   name="password" 
+                   placeholder="Пароль" 
+                   required 
+                   autocomplete="new-password">
+                   
+            <button type="submit">Войти в админку</button>
+        </form>
+        
+        <a href="/login" class="back-link">← Вернуться к входу для учеников</a>
+    </div>
+</body>
+</html>
