@@ -28,11 +28,16 @@ app.config["SECRET_KEY"] = "school-portal-secret-key-2026"
 # --- ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ (POSTGRESQL / SQLITE) ---
 database_url = os.environ.get("DATABASE_URL")
 
-# Исправление префикса для SQLAlchemy, если Render передает postgres://
-if database_url and database_url.startswith("postgres://"):
-  database_url = database_url.replace("postgres://", "postgresql://", 1)
+if database_url:
+  if database_url.startswith("postgres://"):
+    database_url = database_url.replace(
+        "postgres://", "postgresql+psycopg2://", 1
+    )
+  elif database_url.startswith("postgresql://"):
+    database_url = database_url.replace(
+        "postgresql://", "postgresql+psycopg2://", 1
+    )
 
-# В облаке Render используем Neon PostgreSQL, локально — SQLite
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     database_url or "sqlite:///school_class.db"
 )
@@ -53,7 +58,9 @@ class User(UserMixin, db.Model):
   id = db.Column(db.Integer, primary_key=True)
   username = db.Column(db.String(80), unique=True, nullable=False)
   password_hash = db.Column(db.String(200), nullable=False)
-  role = db.Column(db.String(20), nullable=False, default="student")  # admin, teacher, student, parent
+  role = db.Column(
+      db.String(20), nullable=False, default="student"
+  )  # admin, teacher, student, parent
   full_name = db.Column(db.String(120), nullable=False)
   parent_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
@@ -96,7 +103,6 @@ def load_user(user_id):
 # --- ИНИЦИАЛИЗАЦИЯ БАЗЫ И АДМИНИСТРАТОРА ---
 with app.app_context():
   db.create_all()
-  # Автоматическое создание аккаунта администратора по умолчанию
   if not User.query.filter_by(username="admin").first():
     admin = User(
         username="admin", full_name="Главный Администратор", role="admin"
@@ -107,8 +113,6 @@ with app.app_context():
 
 
 # --- МАРШРУТЫ ПРИЛОЖЕНИЯ ---
-
-
 @app.route("/")
 def index():
   if current_user.is_authenticated:
@@ -176,7 +180,6 @@ def admin():
   if request.method == "POST":
     action = request.form.get("action")
 
-    # Добавление оценки
     if action == "add_grade":
       student_id = request.form.get("student_id")
       subject = request.form.get("subject")
@@ -193,7 +196,6 @@ def admin():
       db.session.commit()
       flash("Оценка успешно добавлена!", "success")
 
-    # Добавление объявления
     elif action == "add_announcement":
       title = request.form.get("title")
       content = request.form.get("content")
@@ -202,7 +204,6 @@ def admin():
       db.session.commit()
       flash("Объявление опубликовано!", "success")
 
-    # Добавление ДЗ
     elif action == "add_homework":
       subject = request.form.get("subject")
       task = request.form.get("task")
