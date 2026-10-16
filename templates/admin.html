@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Müəllim Kabineti</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .journal-table th, .journal-table td { text-align: center; vertical-align: middle; padding: 4px; }
+        .journal-select { width: 50px; text-align: center; font-weight: bold; padding: 2px; }
+        .term-select { width: 75px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4 bg-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#"><i class="bi bi-person-badge"></i> Müəllim Paneli</a>
+            <div class="d-flex align-items-center text-white">
+                <span class="me-3"><i class="bi bi-person-circle"></i> {{ session['full_name'] }}</span>
+                <a href="/logout" class="btn btn-outline-light btn-sm">Çıxış</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm" id="adminTabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#journal-tab" type="button"><i class="bi bi-journal-check"></i> Qiymət Jurnalı</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#term-tab" type="button"><i class="bi bi-award"></i> Yekun Qiymətlər</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#homework-tab" type="button"><i class="bi bi-book"></i> Ev Tapşırığı</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#announcements-tab" type="button"><i class="bi bi-megaphone"></i> Elanlar</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#calendar-tab" type="button"><i class="bi bi-calendar3"></i> İnteraktiv Təqvim</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#schedule-tab" type="button"><i class="bi bi-image"></i> Cədvəl və İmtahanlar</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#notes-tab" type="button"><i class="bi bi-chat-left-text"></i> Xəbərdarlıqlar</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#students-tab" type="button"><i class="bi bi-people"></i> Sinif Siyahısı</button></li>
+        </ul>
+
+        <div class="tab-content" id="adminTabsContent">
+            
+            <!-- ŞAGİRD ÜZRƏ QİYMƏT JURNALI -->
+            <div class="tab-pane fade show active" id="journal-tab">
+                <div class="card p-3 mb-3 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <form method="GET" action="/admin" class="d-flex align-items-center gap-2">
+                            <label class="fw-bold me-2"><i class="bi bi-person"></i> Şagird:</label>
+                            <select name="student_id" class="form-select w-auto" onchange="this.form.submit()">
+                                {% for s in students %}
+                                    <option value="{{ s.id }}" {% if s.id == selected_student_id %}selected{% endif %}>{{ s.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        {% if selected_student_id %}
+                            <a href="/admin/print_tabel/{{ selected_student_id }}" target="_blank" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-file-earmark-pdf-fill"></i> Şagirdin Tabeli (PDF)
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    {% if selected_student_id %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle journal-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width: 180px; text-align: left;">Fənn</th>
+                                    {% for date_str in journal_dates %}
+                                        <th style="font-size: 11px;">{{ date_str[8:] }}.{{ date_str[5:7] }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subj in subjects %}
+                                    <tr>
+                                        <td class="text-start"><b>{{ subj }}</b></td>
+                                        {% for date_str in journal_dates %}
+                                            {% set current_val = journal_matrix.get((subj, date_str), '') %}
+                                            <td>
+                                                <select class="form-select form-select-sm journal-select mx-auto" 
+                                                        onchange="saveJournalGrade('{{ selected_student_id }}', '{{ subj }}', '{{ date_str }}', this.value)">
+                                                    <option value=""></option>
+                                                    <option value="5" {% if current_val == '5' %}selected{% endif %}>5</option>
+                                                    <option value="4" {% if current_val == '4' %}selected{% endif %}>4</option>
+                                                    <option value="3" {% if current_val == '3' %}selected{% endif %}>3</option>
+                                                    <option value="2" {% if current_val == '2' %}selected{% endif %}>2</option>
+                                                    <option value="q/b" {% if current_val == 'q/b' or current_val == 'Н' %}selected{% endif %}>q/b</option>
+                                                </select>
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- YEKUN QİYMƏTLƏR -->
+            <div class="tab-pane fade" id="term-tab">
+                <div class="card p-3 shadow-sm">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-award"></i> Yarımillik və İllik Qiymətlər</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle journal-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-start">Şagird</th>
+                                    <th class="text-start">Fənn</th>
+                                    {% for term in terms %}
+                                        <th>{{ term }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in students %}
+                                    {% for subj in subjects %}
+                                        <tr>
+                                            {% if loop.first %}
+                                                <td rowspan="{{ subjects|length }}" class="text-start align-top bg-light"><b>{{ s.full_name }}</b></td>
+                                            {% endif %}
+                                            <td class="text-start">{{ subj }}</td>
+                                            {% for term in terms %}
+                                                {% set t_val = term_matrix.get((s.id, subj, term), '') %}
+                                                <td>
+                                                    <select class="form-select form-select-sm term-select mx-auto"
+                                                            onchange="saveTermGrade('{{ s.id }}', '{{ subj }}', '{{ term }}', this.value)">
+                                                        <option value=""></option>
+                                                        <option value="5" {% if t_val == '5' %}selected{% endif %}>5</option>
+                                                        <option value="4" {% if t_val == '4' %}selected{% endif %}>4</option>
+                                                        <option value="3" {% if t_val == '3' %}selected{% endif %}>3</option>
+                                                        <option value="2" {% if t_val == '2' %}selected{% endif %}>2</option>
+                                                        <option value="Məqb" {% if t_val == 'Məqb' or t_val == 'Зач' %}selected{% endif %}>Məqb</option>
+                                                    </select>
+                                                </td>
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EV TAPŞIRIĞI -->
+            <div class="tab-pane fade" id="homework-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card p-3">
+                            <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-plus"></i> Yeni Ev Tapşırığı</h5>
+                            <form action="/admin/add_homework" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label">Fənn</label>
+                                    <select name="subject" class="form-select" required>
+                                        <option value="" disabled selected>Fənni seçin...</option>
+                                        {% for subj in subjects %}
+                                            <option value="{{ subj }}">{{ subj }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Tapşırığın təsviri</label>
+                                    <textarea name="description" class="form-control" rows="4" placeholder="Çalışma №45..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Fayl qoş</label>
+                                    <input type="file" name="file" class="form-control">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Tapşırığı Paylaş</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <h5 class="fw-bold mb-3">Paylaşılmış Tapşırıqlar (8 gündən sonra avtomatik silinir)</h5>
+                        {% for hw in homeworks %}
+                            <div class="card p-3 mb-3 border-0 shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="fw-bold text-primary mb-1">{{ hw.subject }}</h6>
+                                </div>
+                                <p class="mb-2 mt-1">{{ hw.description }}</p>
+                                {% if hw.file_path %}
+                                    <div class="mb-2">
+                                        <a href="{{ url_for('static', filename='uploads/' + hw.file_path) }}" target="_blank" class="btn btn-sm btn-outline-info text-dark">
+                                            <i class="bi bi-paperclip"></i> {{ hw.file_path }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+                                <div class="d-flex gap-2 mt-2">
+                                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editHwModal{{ hw.id }}">
+                                        <i class="bi bi-pencil"></i> Düzəliş et
+                                    </button>
+                                    <form action="/admin/delete_homework/{{ hw.id }}" method="POST" onsubmit="return confirm('Tapşırığı silmək istədiyinizdən əminsiniz?');">
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Sil</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Ev tapşırığını redaktə etmə modali -->
+                            <div class="modal fade" id="editHwModal{{ hw.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form action="/admin/edit_homework/{{ hw.id }}" method="POST" enctype="multipart/form-data">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Ev Tapşırığına Düzəliş Et</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Fənn</label>
+                                                    <select name="subject" class="form-select" required>
+                                                        {% for subj in subjects %}
+                                                            <option value="{{ subj }}" {% if subj == hw.subject %}selected{% endif %}>{{ subj }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Təsvir</label>
+                                                    <textarea name="description" class="form-control" rows="4" required>{{ hw.description }}</textarea>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Faylı dəyişdir (istəyə bağlı)</label>
+                                                    <input type="file" name="file" class="form-control">
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ləğv et</button>
+                                                <button type="submit" class="btn btn-primary">Yadda saxla</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ELANLAR -->
+            <div class="tab-pane fade" id="announcements-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card p-3">
+                            <h5 class="fw-bold mb-3"><i class="bi bi-megaphone"></i> Yeni Elan</h5>
+                            <form action="/admin/add_announcement" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Mövzu</label>
+                                    <input type="text" name="title" class="form-control" placeholder="Valideyn iclası" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Mətn</label>
+                                    <textarea name="content" class="form-control" rows="4" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Dərc et</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <h5 class="fw-bold mb-3">Dərc Olunmuş Elanlar</h5>
+                        {% for a in announcements %}
+                            <div class="card p-3 mb-3 border-0 shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="fw-bold text-danger mb-1">{{ a.title }}</h6>
+                                    <small class="text-muted">{{ a.date }}</small>
+                                </div>
+                                <p class="mb-2 mt-1">{{ a.content }}</p>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editAnnModal{{ a.id }}">
+                                        <i class="bi bi-pencil"></i> Düzəliş et
+                                    </button>
+                                    <form action="/admin/delete_announcement/{{ a.id }}" method="POST" onsubmit="return confirm('Elanı silmək istədiyinizdən əminsiniz?');">
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Sil</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Elanı redaktə etmə modali -->
+                            <div class="modal fade" id="editAnnModal{{ a.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form action="/admin/edit_announcement/{{ a.id }}" method="POST">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Elana Düzəliş Et</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Mövzu</label>
+                                                    <input type="text" name="title" class="form-control" value="{{ a.title }}" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Mətn</label>
+                                                    <textarea name="content" class="form-control" rows="4" required>{{ a.content }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ləğv et</button>
+                                                <button type="submit" class="btn btn-primary">Yadda saxla</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- İNTERAKTİV TƏQVİM -->
+            <div class="tab-pane fade" id="calendar-tab">
+                <div class="card p-4">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill"></i> <b>Qeyd əlavə etmək üçün:</b> Təqvimdə istədiyiniz günə klikləyin, başlığı daxil edin və yadda saxlayın.
+                    </div>
+                    <div id="calendar"></div>
+                </div>
+            </div>
+
+            <!-- CƏDVƏL VƏ İMTAHANLAR -->
+            <div class="tab-pane fade" id="schedule-tab">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card p-3">
+                            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-calendar-week"></i> Dərs Cədvəli</h5>
+                            <form action="/admin/upload_portal_image" method="POST" enctype="multipart/form-data" class="mb-3">
+                                <input type="hidden" name="image_type" value="schedule">
+                                <div class="mb-3">
+                                    <input type="file" name="file" class="form-control" accept="image/*" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Cədvəli Yenilə</button>
+                            </form>
+                            {% if images.get('schedule') %}
+                                <div class="border rounded p-2 text-center bg-light">
+                                    <img src="{{ url_for('static', filename='uploads/' + images['schedule']) }}" class="img-fluid rounded" style="max-height: 350px;">
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-4">
+                        <div class="card p-3">
+                            <h5 class="fw-bold text-danger mb-3"><i class="bi bi-file-earmark-spreadsheet"></i> İmtahan Qrafiki</h5>
+                            <form action="/admin/upload_portal_image" method="POST" enctype="multipart/form-data" class="mb-3">
+                                <input type="hidden" name="image_type" value="exams">
+                                <div class="mb-3">
+                                    <input type="file" name="file" class="form-control" accept="image/*" required>
+                                </div>
+                                <button type="submit" class="btn btn-danger"><i class="bi bi-upload"></i> İmtahan Qrafikini Yenilə</button>
+                            </form>
+                            {% if images.get('exams') %}
+                                <div class="border rounded p-2 text-center bg-light">
+                                    <img src="{{ url_for('static', filename='uploads/' + images['exams']) }}" class="img-fluid rounded" style="max-height: 350px;">
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- XƏBƏRDARLIQLAR -->
+            <div class="tab-pane fade" id="notes-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card p-3">
+                            <h5 class="fw-bold mb-3"><i class="bi bi-pencil-square"></i> Xəbərdarlıq Yaz</h5>
+                            <form action="/admin/add_note" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Kimə</label>
+                                    <select name="student_id" class="form-select">
+                                        <option value="all">Bütün valideynlərə (Ümumi qeyd)</option>
+                                        {% for s in students %}
+                                            <option value="{{ s.id }}">{{ s.full_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Başlıq</label>
+                                    <input type="text" name="title" class="form-control" placeholder="Dərsdə intizam" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Mətn</label>
+                                    <textarea name="content" class="form-control" rows="3" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Göndər</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <h5 class="fw-bold mb-3">Göndərilmiş Xəbərdarlıqlar</h5>
+                        {% for n in notes %}
+                            <div class="card p-3 mb-3 border-0 shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="fw-bold text-warning mb-1">{{ n.title }}</h6>
+                                    <small class="text-muted">{{ n.date }}</small>
+                                </div>
+                                <p class="mb-1"><b>Ünvan sahibi:</b> {{ n.student_name if n.student_name else 'Bütün valideynlər' }}</p>
+                                <p class="mb-2">{{ n.content }}</p>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editNoteModal{{ n.id }}">
+                                        <i class="bi bi-pencil"></i> Düzəliş et
+                                    </button>
+                                    <form action="/admin/delete_note/{{ n.id }}" method="POST" onsubmit="return confirm('Xəbərdarlığı silmək istədiyinizdən əminsiniz?');">
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Sil</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Xəbərdarlığı redaktə etmə modali -->
+                            <div class="modal fade" id="editNoteModal{{ n.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form action="/admin/edit_note/{{ n.id }}" method="POST">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Xəbərdarlığa Düzəliş Et</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Kimə</label>
+                                                    <select name="student_id" class="form-select">
+                                                        <option value="all">Bütün valideynlərə</option>
+                                                        {% for s in students %}
+                                                            <option value="{{ s.id }}" {% if s.id == n.student_id %}selected{% endif %}>{{ s.full_name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Başlıq</label>
+                                                    <input type="text" name="title" class="form-control" value="{{ n.title }}" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Mətn</label>
+                                                    <textarea name="content" class="form-control" rows="3" required>{{ n.content }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ləğv et</button>
+                                                <button type="submit" class="btn btn-primary">Yadda saxla</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ŞAGİRD SİYAHISI -->
+            <div class="tab-pane fade" id="students-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card p-3">
+                            <h5 class="fw-bold mb-3"><i class="bi bi-person-plus"></i> Şagird Əlavə Et</h5>
+                            <form action="/admin/add_student" method="POST">
+                                <div class="mb-3">
+                                    <input type="text" name="full_name" class="form-control" placeholder="Şagirdin S.A.A." required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="text" name="username" class="form-control" placeholder="İstifadəçi adı" required>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="password" name="password" class="form-control" placeholder="Şifrə" required>
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">Qeydiyyata al</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="table-responsive bg-white rounded shadow-sm">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>S.A.A.</th>
+                                        <th>İstifadəçi adı</th>
+                                        <th>Şifrə</th>
+                                        <th class="text-end">Əməliyyatlar</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for s in students %}
+                                        <tr>
+                                            <td><b>{{ s.full_name }}</b></td>
+                                            <td><span class="badge bg-light text-dark fs-6">{{ s.username }}</span></td>
+                                            <td><span class="fw-bold text-success fs-6">{{ s.plain_password }}</span></td>
+                                            <td class="text-end">
+                                                <a href="/admin/print_tabel/{{ s.id }}" target="_blank" class="btn btn-sm btn-outline-danger me-1" title="Rəsmi PDF Tabel Çıxarışı">
+                                                    <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                                                </a>
+                                                <form action="/admin/delete_student/{{ s.id }}" method="POST" onsubmit="return confirm('Şagirdi silmək istədiyinizdən əminsiniz?');" style="display:inline;">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script>
+      function saveJournalGrade(studentId, subject, date, grade) {
+        fetch('/api/journal/save_grade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId, subject: subject, date: date, grade: grade })
+        });
+      }
+
+      function saveTermGrade(studentId, subject, term, grade) {
+        fetch('/api/journal/save_term_grade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId, subject: subject, term: term, grade: grade })
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        var activeTabId = localStorage.getItem('adminActiveTab');
+        if (activeTabId) {
+            var tabButton = document.querySelector(`[data-bs-target="${activeTabId}"]`);
+            if (tabButton) {
+                var tab = new bootstrap.Tab(tabButton);
+                tab.show();
+            }
+        }
+
+        var tabButtons = document.querySelectorAll('#adminTabs button[data-bs-toggle="pill"]');
+        tabButtons.forEach(function(button) {
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                var tab = new bootstrap.Tab(button);
+                tab.show();
+                var target = button.getAttribute('data-bs-target');
+                localStorage.setItem('adminActiveTab', target);
+            });
+        });
+
+        var calendarEl = document.getElementById('calendar');
+        if (calendarEl) {
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+              initialView: 'dayGridMonth',
+              height: 'auto',
+              headerToolbar: {
+                left: 'prev',
+                center: 'title',
+                right: 'next'
+              },
+              buttonText: {
+                today: 'Bu gün'
+              },
+              viewDidMount: function(arg) {
+                updateCalendarTitle(arg.view);
+              },
+              datesSet: function(arg) {
+                updateCalendarTitle(arg.view);
+              },
+              selectable: true,
+              events: '/api/events',
+              dateClick: function(info) {
+                var title = prompt(info.dateStr + ' tarixi üçün qeyd daxil edin:');
+                if (title) {
+                  fetch('/api/events/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title, date: info.dateStr })
+                  })
+                  .then(res => res.json())
+                  .then(data => { if (data.success) calendar.refetchEvents(); });
+                }
+              },
+              eventClick: function(info) {
+                if (confirm('Qeydi silmək istəyirsiniz: "' + info.event.title + '"?')) {
+                  fetch('/api/events/delete/' + info.event.id, { method: 'DELETE' })
+                  .then(res => res.json())
+                  .then(data => { if (data.success) info.event.remove(); });
+                }
+              }
+            });
+            calendar.render();
+
+            function updateCalendarTitle(view) {
+              setTimeout(function() {
+                var titleEl = document.querySelector('.fc-toolbar-title');
+                if (titleEl) {
+                  var currentDate = calendar.getDate();
+                  var monthsAz = [
+                    'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 
+                    'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr'
+                  ];
+                  var monthName = monthsAz[currentDate.getMonth()];
+                  var year = currentDate.getFullYear();
+                  titleEl.innerText = monthName + ' ' + year;
+                }
+              }, 10);
+            }
+
+            var calendarTabEl = document.querySelector('button[data-bs-target="#calendar-tab"]');
+            if (calendarTabEl) {
+              calendarTabEl.addEventListener('shown.bs.tab', function () {
+                calendar.updateSize();
+              });
+            }
+        }
+      });
+    </script>
+</body>
+</html>
